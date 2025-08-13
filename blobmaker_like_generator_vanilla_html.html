@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Blobmaker‑like Generator</title>
+  <style>
+    :root {
+      --bg: #0b0c10;
+      --panel: #121419;
+      --muted: #8b93a1;
+      --text: #e6e9ef;
+      --accent: #7c6cff;
+      --accent-2: #4fd1c5;
+      --stroke: #1f2430;
+      --radius: 16px;
+    }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: var(--text);
+      background: radial-gradient(1200px 800px at 10% -10%, #141726 0%, transparent 60%),
+                  radial-gradient(1200px 800px at 110% 10%, #10201a 0%, transparent 60%),
+                  var(--bg);
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      grid-template-rows: auto 1fr;
+      gap: 16px;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand {
+      display: flex; gap: 12px; align-items: center;
+      font-weight: 700; letter-spacing: .2px; font-size: 18px;
+    }
+    .brand .dot {
+      width: 12px; height: 12px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 0 0 4px rgba(124,108,255,.15);
+    }
+
+    .panel {
+      background: color-mix(in oklab, var(--panel), white 2%);
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    }
+    .controls { display: grid; gap: 14px; align-content: start; }
+    .control { display: grid; gap: 6px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .row .value { color: var(--muted); font-variant-numeric: tabular-nums; }
+    label { color: #cbd5e1; font-size: 13px; }
+
+    input[type="range"] {
+      -webkit-appearance: none; appearance: none; width: 100%; height: 28px;
+      background: transparent;
+    }
+    input[type="range"]:focus { outline: none; }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 6px; background: #262b36; border-radius: 999px; border: 1px solid #1c212b;
+    }
+    input[type="range"]::-moz-range-track {
+      height: 6px; background: #262b36; border-radius: 999px; border: 1px solid #1c212b;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none; margin-top: -6px; width: 18px; height: 18px;
+      border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 1px 0 rgba(255,255,255,.15) inset, 0 2px 8px rgba(0,0,0,.5);
+      border: none;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 18px; height: 18px; border-radius: 50%; border: none;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 1px 0 rgba(255,255,255,.15) inset, 0 2px 8px rgba(0,0,0,.5);
+    }
+
+    .swatches {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    }
+    .swatch { display: grid; gap: 6px; }
+    input[type="color"] { width: 100%; height: 36px; border-radius: 10px; border: 1px solid #262b36; background: #0f1115; }
+    input[type="number"], input[type="text"] { width: 100%; box-sizing: border-box; background: #0f1115; color: var(--text);
+      border: 1px solid #262b36; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+    .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .btns { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+    button {
+      appearance: none; border: 1px solid #242938; background: #141826; color: var(--text);
+      padding: 10px 12px; border-radius: 12px; font-weight: 600; letter-spacing: .2px;
+      cursor: pointer; transition: transform .04s ease, background .15s ease, border-color .15s ease;
+    }
+    button:hover { background: #171c2f; border-color: #30364c; }
+    button:active { transform: translateY(1px); }
+    .btn-accent { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: none; color: #0b0c10; }
+    .btn-accent:hover { filter: brightness(1.03); }
+
+    /* Preview */
+    .preview-wrap { position: relative; }
+    .preview {
+      height: 100%; width: 100%; background:
+        linear-gradient(0deg, rgba(255,255,255,.02), rgba(255,255,255,.02)) padding-box,
+        conic-gradient(from 90deg at 1px 1px, #171a23 90deg, transparent 0) 0 0/16px 16px;
+      border: 1px solid var(--stroke); border-radius: var(--radius);
+      display: grid; place-items: center; overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0,0,0,.35) inset;
+      min-height: 420px;
+    }
+    .svg-pad { width: min(84vmin, 920px); height: min(84vmin, 920px); }
+    .legend { position: absolute; bottom: 10px; right: 12px; font-size: 12px; color: var(--muted); }
+
+    .status { font-size: 12px; color: var(--muted); min-height: 1em; }
+
+    @media (max-width: 980px) {
+      body { grid-template-columns: 1fr; }
+      .svg-pad { width: 100%; height: 56vh; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="dot"></span> <span>Blobmaker‑like Generator</span></div>
+    <div class="status" id="status" aria-live="polite"></div>
+  </header>
+
+  <aside class="panel controls" aria-label="Controlli">
+    <div class="control">
+      <div class="row"><label for="points">Complessità (punti)</label><span class="value" id="pointsVal">8</span></div>
+      <input id="points" type="range" min="3" max="24" step="1" value="8" />
+    </div>
+
+    <div class="control">
+      <div class="row"><label for="randomness">Randomness</label><span class="value" id="randomnessVal">0.35</span></div>
+      <input id="randomness" type="range" min="0" max="1" step="0.01" value="0.35" />
+    </div>
+
+    <div class="control">
+      <div class="row"><label for="roundness">Arrotondamento</label><span class="value" id="roundnessVal">0.65</span></div>
+      <input id="roundness" type="range" min="0" max="1.2" step="0.01" value="0.65" />
+    </div>
+
+    <div class="control">
+      <div class="row"><label for="size">Dimensione (px)</label><span class="value" id="sizeVal">600</span></div>
+      <input id="size" type="range" min="128" max="1200" step="1" value="600" />
+    </div>
+
+    <div class="swatches">
+      <div class="swatch control">
+        <div class="row"><label for="fill">Riempimento</label><input id="fillAlpha" type="number" min="0" max="1" step="0.05" value="1" style="width:80px" title="Opacità" /></div>
+        <input id="fill" type="color" value="#7c6cff" />
+      </div>
+      <div class="swatch control">
+        <div class="row"><label for="strokeCol">Bordo</label><input id="strokeW" type="number" min="0" max="64" step="0.5" value="0" style="width:80px" title="Spessore" /></div>
+        <input id="strokeCol" type="color" value="#0b0c10" />
+      </div>
+    </div>
+
+    <div class="control">
+      <label for="seed">Seed (lascia vuoto per random)</label>
+      <input id="seed" type="text" placeholder="es. 12345 o una parola" />
+    </div>
+
+    <div class="seg">
+      <button id="randomize" class="btn-accent">Randomizza</button>
+      <button id="regenerate">Rigenera</button>
+    </div>
+
+    <div class="btns">
+      <button id="copySvg">Copia SVG</button>
+      <button id="downloadSvg">Scarica SVG</button>
+      <button id="downloadPng">Scarica PNG</button>
+      <button id="toggleBg">Sfondo trasparente: <span id="bgState">OFF</span></button>
+    </div>
+  </aside>
+
+  <main class="preview-wrap">
+    <div class="panel preview">
+      <svg id="svg" class="svg-pad" role="img" aria-label="Anteprima blob" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div class="legend">⬤ Trascina i cursori, poi esporta</div>
+  </main>
+
+<script>
+// ---------- Utilities ----------
+function mulberry32(a) {
+  let t = a >>> 0;
+  return function() {
+    t += 0x6D2B79F5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  }
+}
+function hashStringToSeed(str) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+function nice(num) { return Number(num.toFixed(2)); }
+
+// Convert Catmull-Rom to cubic Bezier control points for closed path
+function catmullRomToBezier(points, t = 0.65) {
+  const n = points.length;
+  if (n < 2) return '';
+  const path = [];
+  const p0 = points[0];
+  path.push(`M ${nice(p0.x)} ${nice(p0.y)}`);
+  for (let i = 0; i < n; i++) {
+    const p_1 = points[(i - 1 + n) % n];
+    const p1 = points[i];
+    const p2 = points[(i + 1) % n];
+    const p3 = points[(i + 2) % n];
+    const c1x = p1.x + (p2.x - p_1.x) * (t / 6);
+    const c1y = p1.y + (p2.y - p_1.y) * (t / 6);
+    const c2x = p2.x - (p3.x - p1.x) * (t / 6);
+    const c2y = p2.y - (p3.y - p1.y) * (t / 6);
+    path.push(`C ${nice(c1x)} ${nice(c1y)} ${nice(c2x)} ${nice(c2y)} ${nice(p2.x)} ${nice(p2.y)}`);
+  }
+  path.push('Z');
+  return path.join(' ');
+}
+
+function generateBlob({ points = 8, randomness = 0.35, roundness = 0.65, size = 600, seed = null }) {
+  // deterministic RNG when seed provided
+  let rand;
+  if (seed === null || seed === '' || seed === undefined) {
+    rand = Math.random;
+  } else {
+    const s = typeof seed === 'string' ? hashStringToSeed(seed) : (seed >>> 0);
+    rand = mulberry32(s);
+  }
+
+  const cx = size / 2, cy = size / 2;
+  const baseR = size * 0.36; // base radius
+  const pts = [];
+  for (let i = 0; i < points; i++) {
+    const a = (i / points) * Math.PI * 2;
+    const jitter = 1 + (rand() * 2 - 1) * randomness; // [1-r, 1+r]
+    const r = baseR * Math.max(0.15, jitter);
+    const x = cx + Math.cos(a) * r;
+    const y = cy + Math.sin(a) * r;
+    pts.push({ x, y });
+  }
+
+  const d = catmullRomToBezier(pts, roundness);
+  const vb = `0 0 ${size} ${size}`;
+  return { d, viewBox: vb };
+}
+
+function svgString({ d, viewBox, fill = '#7c6cff', fillAlpha = 1, stroke = '#0b0c10', strokeW = 0, size = 600 }) {
+  const fillRGBA = hexToRgba(fill, fillAlpha);
+  return `<?xml version="1.0" encoding="UTF-8"?>\n` +
+`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${viewBox}" role="img" aria-label="blob">\n` +
+`  <path d="${d}" fill="${fillRGBA}" stroke="${stroke}" stroke-width="${strokeW}" />\n` +
+`</svg>`;
+}
+
+function hexToRgba(hex, alpha = 1) {
+  if (hex.startsWith('rgba') || hex.startsWith('hsla')) return hex; // already valid
+  let r = 0, g = 0, b = 0;
+  const h = hex.replace('#','');
+  if (h.length === 3) {
+    r = parseInt(h[0] + h[0], 16);
+    g = parseInt(h[1] + h[1], 16);
+    b = parseInt(h[2] + h[2], 16);
+  } else if (h.length === 6) {
+    r = parseInt(h.slice(0,2), 16);
+    g = parseInt(h.slice(2,4), 16);
+    b = parseInt(h.slice(4,6), 16);
+  }
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// ---------- App state + DOM ----------
+const els = {
+  svg: document.getElementById('svg'),
+  points: document.getElementById('points'),
+  randomness: document.getElementById('randomness'),
+  roundness: document.getElementById('roundness'),
+  size: document.getElementById('size'),
+  fill: document.getElementById('fill'),
+  fillAlpha: document.getElementById('fillAlpha'),
+  strokeCol: document.getElementById('strokeCol'),
+  strokeW: document.getElementById('strokeW'),
+  seed: document.getElementById('seed'),
+  status: document.getElementById('status'),
+  bgState: document.getElementById('bgState'),
+  copySvg: document.getElementById('copySvg'),
+  downloadSvg: document.getElementById('downloadSvg'),
+  downloadPng: document.getElementById('downloadPng'),
+  randomize: document.getElementById('randomize'),
+  regenerate: document.getElementById('regenerate'),
+  // value labels
+  _pointsVal: document.getElementById('pointsVal'),
+  _randomnessVal: document.getElementById('randomnessVal'),
+  _roundnessVal: document.getElementById('roundnessVal'),
+  _sizeVal: document.getElementById('sizeVal'),
+  toggleBg: document.getElementById('toggleBg'),
+};
+
+let transparentBg = false;
+
+function readOptions() {
+  return {
+    points: parseInt(els.points.value, 10),
+    randomness: parseFloat(els.randomness.value),
+    roundness: parseFloat(els.roundness.value),
+    size: parseInt(els.size.value, 10),
+    seed: els.seed.value.trim() || null,
+    fill: els.fill.value,
+    fillAlpha: parseFloat(els.fillAlpha.value),
+    stroke: els.strokeCol.value,
+    strokeW: parseFloat(els.strokeW.value),
+  };
+}
+
+function setStatus(msg) {
+  els.status.textContent = msg;
+  if (!msg) return;
+  clearTimeout(setStatus._t);
+  setStatus._t = setTimeout(() => els.status.textContent = '', 2200);
+}
+
+function render() {
+  const opts = readOptions();
+  const { d, viewBox } = generateBlob(opts);
+  els.svg.setAttribute('viewBox', viewBox);
+  els.svg.setAttribute('width', opts.size);
+  els.svg.setAttribute('height', opts.size);
+  els.svg.innerHTML = '';
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  path.setAttribute('fill', hexToRgba(opts.fill, opts.fillAlpha));
+  path.setAttribute('stroke', opts.stroke);
+  path.setAttribute('stroke-width', String(opts.strokeW));
+  els.svg.appendChild(path);
+
+  // background transparency for PNG preview
+  els.svg.style.background = transparentBg ? 'transparent' : '';
+}
+
+function toSVGString() {
+  const opts = readOptions();
+  const { d, viewBox } = generateBlob(opts);
+  return svgString({ d, viewBox, fill: opts.fill, fillAlpha: opts.fillAlpha, stroke: opts.stroke, strokeW: opts.strokeW, size: opts.size });
+}
+
+function copySvgToClipboard() {
+  const str = toSVGString();
+  navigator.clipboard.writeText(str).then(() => setStatus('SVG copiato negli appunti')).catch(() => setStatus('Impossibile copiare SVG'));
+}
+
+function download(filename, dataUrl) {
+  const a = document.createElement('a');
+  a.href = dataUrl; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+}
+
+function downloadSVG() {
+  const svg = toSVGString();
+  const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  download('blob.svg', url);
+  URL.revokeObjectURL(url);
+}
+
+function downloadPNG() {
+  const svg = toSVGString();
+  const size = parseInt(els.size.value, 10);
+  const img = new Image();
+  const svg64 = btoa(unescape(encodeURIComponent(svg)));
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!transparentBg) {
+      ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--bg') || '#0b0c10';
+      ctx.fillRect(0,0,size,size);
+    }
+    ctx.drawImage(img, 0, 0);
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      download('blob.png', url);
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  };
+  img.src = 'data:image/svg+xml;base64,' + svg64;
+}
+
+function randomSeed() {
+  const bytes = new Uint32Array(1);
+  crypto.getRandomValues(bytes);
+  return String(bytes[0]);
+}
+
+// ---------- Wire up ----------
+[els.points, els.randomness, els.roundness, els.size].forEach(inp => {
+  const map = { points: '_pointsVal', randomness: '_randomnessVal', roundness: '_roundnessVal', size: '_sizeVal' };
+  inp.addEventListener('input', () => {
+    const label = map[inp.id]; if (label) els[label].textContent = inp.value;
+    render();
+  });
+});
+[els.fill, els.fillAlpha, els.strokeCol, els.strokeW, els.seed].forEach(inp => inp.addEventListener('input', render));
+
+els.copySvg.addEventListener('click', copySvgToClipboard);
+els.downloadSvg.addEventListener('click', downloadSVG);
+els.downloadPng.addEventListener('click', downloadPNG);
+
+els.randomize.addEventListener('click', () => { els.seed.value = randomSeed(); render(); setStatus('Nuovo seed: ' + els.seed.value); });
+els.regenerate.addEventListener('click', () => { render(); setStatus('Rigenerato'); });
+
+els.toggleBg.addEventListener('click', () => { transparentBg = !transparentBg; els.bgState.textContent = transparentBg ? 'ON' : 'OFF'; setStatus('Sfondo PNG ' + (transparentBg ? 'trasparente' : 'opaco')); });
+
+// Initialize
+render();
+</script>
+</body>
+</html>

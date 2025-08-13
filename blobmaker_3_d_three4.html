@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Blobmaker 3D – Three.js (forme complesse + animazione GLB)</title>
+  <style>
+    :root {
+      --bg: #0b0c10;
+      --panel: #121419;
+      --muted: #8b93a1;
+      --text: #e6e9ef;
+      --accent: #7c6cff;
+      --accent-2: #4fd1c5;
+      --stroke: #1f2430;
+      --radius: 16px;
+    }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: var(--text);
+      background: radial-gradient(1200px 800px at 10% -10%, #141726 0%, transparent 60%),
+                  radial-gradient(1200px 800px at 110% 10%, #10201a 0%, transparent 60%),
+                  var(--bg);
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      grid-template-rows: auto 1fr;
+      gap: 16px;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    header { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; }
+    .brand { display: flex; gap: 12px; align-items: center; font-weight: 700; letter-spacing: .2px; font-size: 18px; }
+    .brand .dot { width: 12px; height: 12px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 0 0 4px rgba(124,108,255,.15); }
+    .status { font-size: 12px; color: var(--muted); min-height: 1em; }
+
+    .panel { background: color-mix(in oklab, var(--panel), white 2%); border: 1px solid var(--stroke); border-radius: var(--radius); padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+    .controls { display: grid; gap: 14px; align-content: start; }
+    .control { display: grid; gap: 6px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .row .value { color: var(--muted); font-variant-numeric: tabular-nums; }
+    label { color: #cbd5e1; font-size: 13px; }
+
+    input[type="range"], select { -webkit-appearance: none; appearance: none; width: 100%; height: 32px; background: transparent; }
+    input[type="range"]:focus { outline: none; }
+    input[type="range"]::-webkit-slider-runnable-track { height: 6px; background: #262b36; border-radius: 999px; border: 1px solid #1c212b; }
+    input[type="range"]::-moz-range-track { height: 6px; background: #262b36; border-radius: 999px; border: 1px solid #1c212b; }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; margin-top: -6px; width: 18px; height: 18px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 1px 0 rgba(255,255,255,.15) inset, 0 2px 8px rgba(0,0,0,.5); border: none; }
+    input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; border: none; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 1px 0 rgba(255,255,255,.15) inset, 0 2px 8px rgba(0,0,0,.5); }
+
+    input[type="number"], input[type="text"], select { width: 100%; box-sizing: border-box; background: #0f1115; color: var(--text); border: 1px solid #262b36; border-radius: 10px; padding: 10px 12px; font-size: 14px; height: auto; }
+    input[type="color"] { width: 100%; height: 36px; border-radius: 10px; border: 1px solid #262b36; background: #0f1115; }
+
+    .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .btns { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+    button { appearance: none; border: 1px solid #242938; background: #141826; color: var(--text); padding: 10px 12px; border-radius: 12px; font-weight: 600; letter-spacing: .2px; cursor: pointer; transition: transform .04s ease, background .15s ease, border-color .15s ease; }
+    button:hover { background: #171c2f; border-color: #30364c; }
+    button:active { transform: translateY(1px); }
+    .btn-accent { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: none; color: #0b0c10; }
+    .btn-accent:hover { filter: brightness(1.03); }
+
+    .viewport { position: relative; min-height: 420px; }
+    canvas { width: 100%; height: 100%; border-radius: var(--radius); border: 1px solid var(--stroke); box-shadow: 0 30px 80px rgba(0,0,0,.35) inset; background: conic-gradient(from 90deg at 1px 1px, #171a23 90deg, transparent 0) 0 0/16px 16px; }
+    .legend { position: absolute; bottom: 10px; right: 12px; font-size: 12px; color: var(--muted); }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="dot"></span> <span>Blobmaker 3D</span></div>
+    <div class="status" id="status" aria-live="polite"></div>
+  </header>
+
+  <aside class="panel controls" aria-label="Controlli">
+    <div class="control">
+      <label for="shape">Forma base</label>
+      <select id="shape">
+        <option value="sphere" selected>Sfera (Icosa)</option>
+        <option value="torus">Torus</option>
+        <option value="torusKnot">Torus Knot</option>
+        <option value="capsule">Capsule</option>
+        <option value="box">Box</option>
+        <option value="cone">Cono</option>
+        <option value="cylinder">Cilindro</option>
+        <option value="cylinderBent">Cilindro piegato</option>
+      </select>
+    </div>
+
+    <div class="control" id="tkParams" style="display:none">
+      <div class="row"><label>p / q (TorusKnot)</label><span class="value"><span id="pVal">2</span> / <span id="qVal">3</span></span></div>
+      <div class="row">
+        <input id="p" type="range" min="2" max="7" step="1" value="2" />
+        <input id="q" type="range" min="1" max="9" step="1" value="3" />
+      </div>
+    </div>
+
+    <div class="control" id="cylParams" style="display:none">
+      <div class="row"><label>Raggio</label><span class="value" id="radiusVal">0.8</span></div>
+      <input id="radius" type="range" min="0.2" max="2.5" step="0.01" value="0.8" />
+      <div class="row"><label>Altezza</label><span class="value" id="heightVal">1.6</span></div>
+      <input id="height" type="range" min="0.4" max="4" step="0.01" value="1.6" />
+    </div>
+
+    <div class="control" id="bendParams" style="display:none">
+      <div class="row"><label>Angolo di piega (°)</label><span class="value" id="bendVal">60</span></div>
+      <input id="bend" type="range" min="0" max="180" step="1" value="60" />
+    </div>
+
+    <div class="control">
+      <div class="row"><label for="detail">Dettaglio mesh</label><span class="value" id="detailVal">4</span></div>
+      <input id="detail" type="range" min="1" max="6" step="1" value="4" />
+    </div>
+
+    <div class="control">
+      <div class="row"><label for="subdiv">Subdivision</label><span class="value" id="subdivVal">1</span></div>
+      <input id="subdiv" type="range" min="0" max="2" step="1" value="1" />
+    </div>
+
+    <div class="control">
+      <div class="row"><label for="amplitude">Ampiezza</label><span class="value" id="amplitudeVal">0.35</span></div>
+      <input id="amplitude" type="range" min="0" max="1" step="0.01" value="0.35" />
+    </div>
+
+    <div class="control">
+      <div class="row"><label for="scale">Scala rumore</label><span class="value" id="scaleVal">1.2</span></div>
+      <input id="scale" type="range" min="0.2" max="4" step="0.01" value="1.2" />
+    </div>
+
+    <div class="control">
+      <div class="row"><label for="warp">Domain warp</label><span class="value" id="warpVal">0.35</span></div>
+      <input id="warp" type="range" min="0" max="2" step="0.01" value="0.35" />
+    </div>
+
+    <div class="control">
+      <div class="row"><label for="octaves">Ottave</label><span class="value" id="octavesVal">4</span></div>
+      <input id="octaves" type="range" min="1" max="6" step="1" value="4" />
+    </div>
+
+    <div class="control">
+      <div class="row"><label for="speed">Velocità animazione (preview)</label><span class="value" id="speedVal">0.6</span></div>
+      <input id="speed" type="range" min="0" max="2" step="0.01" value="0.6" />
+    </div>
+
+    <div class="control">
+      <div class="row"><label for="color">Colore</label><input id="wireframe" type="checkbox" /><label for="wireframe">Wireframe</label></div>
+      <input id="color" type="color" value="#7c6cff" />
+    </div>
+
+    <div class="control">
+      <div class="row"><label for="metal">Metalness</label><span class="value" id="metalVal">0.2</span></div>
+      <input id="metal" type="range" min="0" max="1" step="0.01" value="0.2" />
+    </div>
+    <div class="control">
+      <div class="row"><label for="rough">Roughness</label><span class="value" id="roughVal">0.5</span></div>
+      <input id="rough" type="range" min="0" max="1" step="0.01" value="0.5" />
+    </div>
+
+    <div class="control">
+      <label><input id="ridged" type="checkbox"> Rumore "ridged" (creste)</label>
+    </div>
+
+    <hr style="border:none;border-top:1px solid var(--stroke); opacity:.6; margin:4px 0;">
+    <div class="control">
+      <div class="row"><label for="animFrames">Frames animazione (GLB)</label><span class="value" id="animFramesVal">16</span></div>
+      <input id="animFrames" type="range" min="6" max="40" step="1" value="16" />
+    </div>
+    <div class="control">
+      <div class="row"><label for="animDuration">Durata clip (s)</label><span class="value" id="animDurationVal">6</span></div>
+      <input id="animDuration" type="range" min="2" max="20" step="0.5" value="6" />
+    </div>
+
+    <div class="control">
+      <label for="seed">Seed (lascia vuoto per random)</label>
+      <input id="seed" type="text" placeholder="es. 12345 o una parola" />
+    </div>
+
+    <div class="seg">
+      <button id="randomize" class="btn-accent">Randomizza</button>
+      <button id="regenerate">Rigenera</button>
+    </div>
+
+    <div class="btns">
+      <button id="downloadGlb">Scarica GLB (statico)</button>
+      <button id="downloadGlbAnim">Scarica GLB animato</button>
+      <button id="testGlbAnim">Verifica GLB animato</button>
+      <button id="downloadObj">Scarica OBJ (statico)</button>
+      <button id="screenshot">Screenshot PNG</button>
+      <button id="toggleBg">Sfondo trasparente: <span id="bgState">OFF</span></button>
+      <button id="resetView">Reset camera</button>
+    </div>
+  </aside>
+
+  <main class="panel viewport">
+    <canvas id="c"></canvas>
+    <div class="legend">Orbit drag • Scroll zoom • Right‑drag pan</div>
+  </main>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+
+    // ---------- UI elements ----------
+    const ui = {
+      shape: document.getElementById('shape'),
+      p: document.getElementById('p'),
+      q: document.getElementById('q'),
+      pVal: document.getElementById('pVal'),
+      qVal: document.getElementById('qVal'),
+      tkParams: document.getElementById('tkParams'),
+
+      cylParams: document.getElementById('cylParams'),
+      radius: document.getElementById('radius'),
+      height: document.getElementById('height'),
+      radiusVal: document.getElementById('radiusVal'),
+      heightVal: document.getElementById('heightVal'),
+
+      bendParams: document.getElementById('bendParams'),
+      bend: document.getElementById('bend'),
+      bendVal: document.getElementById('bendVal'),
+
+      detail: document.getElementById('detail'),
+      subdiv: document.getElementById('subdiv'),
+      amplitude: document.getElementById('amplitude'),
+      scale: document.getElementById('scale'),
+      warp: document.getElementById('warp'),
+      octaves: document.getElementById('octaves'),
+      speed: document.getElementById('speed'),
+      color: document.getElementById('color'),
+      wireframe: document.getElementById('wireframe'),
+      metal: document.getElementById('metal'),
+      rough: document.getElementById('rough'),
+      ridged: document.getElementById('ridged'),
+      animFrames: document.getElementById('animFrames'),
+      animDuration: document.getElementById('animDuration'),
+      animFramesVal: document.getElementById('animFramesVal'),
+      animDurationVal: document.getElementById('animDurationVal'),
+      seed: document.getElementById('seed'),
+      randomize: document.getElementById('randomize'),
+      regenerate: document.getElementById('regenerate'),
+      downloadGlb: document.getElementById('downloadGlb'),
+      downloadGlbAnim: document.getElementById('downloadGlbAnim'),
+      testGlbAnim: document.getElementById('testGlbAnim'),
+      downloadObj: document.getElementById('downloadObj'),
+      screenshot: document.getElementById('screenshot'),
+      toggleBg: document.getElementById('toggleBg'),
+      bgState: document.getElementById('bgState'),
+      resetView: document.getElementById('resetView'),
+      // labels
+      detailVal: document.getElementById('detailVal'),
+      subdivVal: document.getElementById('subdivVal'),
+      amplitudeVal: document.getElementById('amplitudeVal'),
+      scaleVal: document.getElementById('scaleVal'),
+      warpVal: document.getElementById('warpVal'),
+      octavesVal: document.getElementById('octavesVal'),
+      speedVal: document.getElementById('speedVal'),
+      metalVal: document.getElementById('metalVal'),
+      roughVal: document.getElementById('roughVal'),
+      status: document.getElementById('status')
+    };
+
+    function label(el, val) { el.textContent = val; }
+    function setStatus(msg) { ui.status.textContent = msg; if (!msg) return; clearTimeout(setStatus._t); setStatus._t = setTimeout(()=>ui.status.textContent='', 2200); }
+
+    // ---------- RNG + noise ----------
+    function mulberry32(a){ let t=a>>>0; return function(){ t+=0x6D2B79F5; let r=Math.imul(t^(t>>>15),1|t); r^=r+Math.imul(r^(r>>>7),61|r); return ((r^(r>>>14))>>>0)/4294967296; } }
+    function hashStringToSeed(str){ let h=2166136261>>>0; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619);} return h>>>0; }
+
+    class SimplexNoise { // minimal 3D
+      constructor(rand=Math.random){ this.p=new Uint8Array(256); for(let i=0;i<256;i++) this.p[i]=i; for(let i=255;i>0;i--){ const r=Math.floor(rand()*(i+1)); const t=this.p[i]; this.p[i]=this.p[r]; this.p[r]=t; } this.perm=new Uint8Array(512); for(let i=0;i<512;i++) this.perm[i]=this.p[i&255]; }
+      static grad3=[ [1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0], [1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1], [0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1] ];
+      noise3D(xin,yin,zin){ const F3=1/3, G3=1/6; let n0=0,n1=0,n2=0,n3=0; const s=(xin+yin+zin)*F3; const i=Math.floor(xin+s), j=Math.floor(yin+s), k=Math.floor(zin+s); const t=(i+j+k)*G3; const X0=i-t, Y0=j-t, Z0=k-t; const x0=xin-X0, y0=yin-Y0, z0=zin-Z0; let i1=0,j1=0,k1=0, i2=0,j2=0,k2=0; if(x0>=y0){ if(y0>=z0){ i1=1;j1=0;k1=0; i2=1;j2=1;k2=0; } else if(x0>=z0){ i1=1;j1=0;k1=0; i2=1;j2=0;k2=1; } else { i1=0;j1=0;k1=1; i2=1;j2=0;k2=1; } } else { if(y0<z0){ i1=0;j1=0;k1=1; i2=0;j2=1;k2=1; } else if(x0<z0){ i1=0;j1=1;k1=0; i2=0;j2=1;k2=1; } else { i1=0;j1=1;k1=0; i2=1;j2=1;k2=0; } }
+        const x1=x0-i1+G3, y1=y0-j1+G3, z1=z0-k1+G3;
+        const x2=x0-i2+2*G3, y2=y0-j2+2*G3, z2=z0-k2+2*G3;
+        const x3=x0-1+3*G3, y3=y0-1+3*G3, z3=z0-1+3*G3;
+        const ii=i&255, jj=j&255, kk=k&255;
+        const gi0=this.perm[ii+this.perm[jj+this.perm[kk]]] % 12;
+        const gi1=this.perm[ii+i1+this.perm[jj+j1+this.perm[kk+k1]]] % 12;
+        const gi2=this.perm[ii+i2+this.perm[jj+j2+this.perm[kk+k2]]] % 12;
+        const gi3=this.perm[ii+1+this.perm[jj+1+this.perm[kk+1]]] % 12;
+        let t0=0.6-x0*x0-y0*y0-z0*z0; if(t0>0){ t0*=t0; n0=t0*t0*(SimplexNoise.grad3[gi0][0]*x0+SimplexNoise.grad3[gi0][1]*y0+SimplexNoise.grad3[gi0][2]*z0); }
+        let t1=0.6-x1*x1-y1*y1-z1*z1; if(t1>0){ t1*=t1; n1=t1*t1*(SimplexNoise.grad3[gi1][0]*x1+SimplexNoise.grad3[gi1][1]*y1+SimplexNoise.grad3[gi1][2]*z1); }
+        let t2=0.6-x2*x2-y2*y2-z2*z2; if(t2>0){ t2*=t2; n2=t2*t2*(SimplexNoise.grad3[gi2][0]*x2+SimplexNoise.grad3[gi2][1]*y2+SimplexNoise.grad3[gi2][2]*z2); }
+        let t3=0.6-x3*x3-y3*y3-z3*z3; if(t3>0){ t3*=t3; n3=t3*t3*(SimplexNoise.grad3[gi3][0]*x3+SimplexNoise.grad3[gi3][1]*y3+SimplexNoise.grad3[gi3][2]*z3); }
+        return 32*(n0+n1+n2+n3);
+      }
+    }
+
+    // ---------- Scene ----------
+    const canvas = document.getElementById('c');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    camera.position.set(0, 0.4, 2.8);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // Lights
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x1a1a2a, 0.7);
+    scene.add(hemi);
+    const key = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(2,2,3); scene.add(key);
+    const rim = new THREE.DirectionalLight(0x88bbff, 0.3); rim.position.set(-3,1,-2); scene.add(rim);
+
+    // Material
+    const material = new THREE.MeshStandardMaterial({ color: 0x7c6cff, roughness: 0.5, metalness: 0.2 });
+
+    // Geometry + mesh
+    const radiusBase = 1;
+    let geo, mesh;
+    let basePos; // Float32Array copy of base vertices (on unit shape)
+    let unitDirs; // Float32Array unit vectors per vertex (used as displacement directions)
+
+    function shapeSegments(detail){ // map slider [1..6] to decent segment counts
+      const pow = Math.pow(2, detail + 3); // 16..512
+      return Math.min(512, Math.max(16, pow));
+    }
+
+    // --- Lightweight inlined subdivision (midpoint split) ---
+    function simpleSubdivide(inGeo, iterations=1){
+      let geo = inGeo.toNonIndexed();
+      for(let it=0; it<iterations; it++){
+        const pos = geo.attributes.position.array;
+        const triCount = pos.length / 9; // 3 verts per tri
+        const out = new Float32Array(triCount * 4 * 9); // 4 tris per tri
+        let o = 0;
+        for(let i=0;i<pos.length;i+=9){
+          const v0x=pos[i],   v0y=pos[i+1], v0z=pos[i+2];
+          const v1x=pos[i+3], v1y=pos[i+4], v1z=pos[i+5];
+          const v2x=pos[i+6], v2y=pos[i+7], v2z=pos[i+8];
+          const m01x=(v0x+v1x)/2, m01y=(v0y+v1y)/2, m01z=(v0z+v1z)/2;
+          const m12x=(v1x+v2x)/2, m12y=(v1y+v2y)/2, m12z=(v1z+v2z)/2;
+          const m20x=(v2x+v0x)/2, m20y=(v2y+v0y)/2, m20z=(v2z+v0z)/2;
+          // tri1 v0,m01,m20
+          out.set([v0x,v0y,v0z, m01x,m01y,m01z, m20x,m20y,m20z], o); o+=9;
+          // tri2 v1,m12,m01
+          out.set([v1x,v1y,v1z, m12x,m12y,m12z, m01x,m01y,m01z], o); o+=9;
+          // tri3 v2,m20,m12
+          out.set([v2x,v2y,v2z, m20x,m20y,m20z, m12x,m12y,m12z], o); o+=9;
+          // tri4 m01,m12,m20
+          out.set([m01x,m01y,m01z, m12x,m12y,m12z, m20x,m20y,m20z], o); o+=9;
+        }
+        geo.dispose();
+        geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(out, 3));
+      }
+      geo.computeVertexNormals();
+      return geo;
+    }
+
+    // --- Bend (curvatura) su Y: curva lungo X ---
+    function bendAlongX(geometry, degrees){
+      const theta = THREE.MathUtils.degToRad(degrees);
+      if(Math.abs(theta) < 1e-6) return geometry; // no bend
+      const g = geometry.toNonIndexed();
+      g.computeBoundingBox();
+      const bb = g.boundingBox;
+      const h = Math.max(1e-6, bb.max.y - bb.min.y);
+      const R = h / theta; // raggio di curvatura
+      const pos = g.attributes.position.array;
+      for(let i=0;i<pos.length;i+=3){
+        const x = pos[i], y = pos[i+1], z = pos[i+2];
+        const t = ( (y - bb.min.y) / h ) - 0.5; // -0.5..0.5
+        const phi = t * theta;
+        const nx = x + R * (1 - Math.cos(phi));
+        const ny = R * Math.sin(phi);
+        pos[i] = nx; pos[i+1] = ny; pos[i+2] = z;
+      }
+      g.computeVertexNormals();
+      return g;
+    }
+
+    function updateParamVisibility(){
+      const s = ui.shape.value;
+      ui.tkParams.style.display = (s==='torusKnot') ? '' : 'none';
+      const wantsCyl = (s==='cone' || s==='cylinder' || s==='cylinderBent');
+      ui.cylParams.style.display = wantsCyl ? '' : 'none';
+      ui.bendParams.style.display = (s==='cylinderBent') ? '' : 'none';
+    }
+
+    function buildGeometry(){
+      const detail = parseInt(ui.detail.value,10);
+      const subdiv = parseInt(ui.subdiv.value,10);
+      const shape = ui.shape.value;
+
+      geo?.dispose();
+
+      if(shape === 'sphere'){
+        geo = new THREE.IcosahedronGeometry(radiusBase, detail);
+      } else if(shape === 'torus'){
+        const seg = Math.floor(shapeSegments(detail));
+        geo = new THREE.TorusGeometry(radiusBase*0.8, radiusBase*0.35, Math.max(12, seg/4), Math.max(24, seg));
+      } else if(shape === 'torusKnot'){
+        const seg = Math.floor(shapeSegments(detail));
+        const p = parseInt(ui.p.value,10), q = parseInt(ui.q.value,10);
+        geo = new THREE.TorusKnotGeometry(radiusBase*0.8, radiusBase*0.25, Math.max(80, seg*2), Math.max(16, seg/3), p, q);
+      } else if(shape === 'capsule'){
+        const seg = Math.floor(shapeSegments(detail))/2|0;
+        geo = new THREE.CapsuleGeometry(radiusBase*0.75, radiusBase*0.6, Math.max(4, seg/2), Math.max(8, seg));
+      } else if(shape === 'box'){
+        const seg = Math.floor(Math.max(2, shapeSegments(detail)/8));
+        geo = new THREE.BoxGeometry(radiusBase*1.6, radiusBase*1.2, radiusBase*1.2, seg, seg, seg);
+      } else if(shape === 'cone' || shape === 'cylinder' || shape === 'cylinderBent'){
+        const r = parseFloat(ui.radius.value);
+        const h = parseFloat(ui.height.value);
+        const seg = Math.floor(shapeSegments(detail));
+        if(shape === 'cone'){
+          geo = new THREE.ConeGeometry(r, h, Math.max(8, seg), Math.max(1, Math.floor(seg/6)));
+        } else {
+          const rTop = r, rBottom = r; // puoi separare se ti serve
+          geo = new THREE.CylinderGeometry(rTop, rBottom, h, Math.max(8, seg), Math.max(1, Math.floor(seg/6)));
+          if(shape === 'cylinderBent'){
+            geo = bendAlongX(geo, parseFloat(ui.bend.value));
+          }
+        }
+      }
+
+      if(subdiv > 0){
+        geo = simpleSubdivide(geo, subdiv);
+      }
+
+      // Base & directions
+      basePos = geo.attributes.position.array.slice(0);
+      unitDirs = new Float32Array(basePos.length);
+      for(let i=0;i<basePos.length;i+=3){
+        const x=basePos[i], y=basePos[i+1], z=basePos[i+2];
+        const len=Math.hypot(x,y,z) || 1; unitDirs[i]=x/len; unitDirs[i+1]=y/len; unitDirs[i+2]=z/len;
+        basePos[i]=unitDirs[i]*radiusBase; basePos[i+1]=unitDirs[i+1]*radiusBase; basePos[i+2]=unitDirs[i+2]*radiusBase;
+      }
+
+      if(!mesh){ mesh = new THREE.Mesh(geo, material); mesh.name = 'Blob'; scene.add(mesh); } else { mesh.geometry = geo; }
+    }
+
+    updateParamVisibility();
+    buildGeometry();
+
+    // ---------- Noise setup ----------
+    let seedRand = Math.random; // default
+    let simplex = new SimplexNoise(seedRand);
+    let offsets = new THREE.Vector3(0,0,0);
+
+    function reseed(seedStr){
+      if(!seedStr){ seedRand=Math.random; }
+      else { const s= (typeof seedStr==='string') ? hashStringToSeed(seedStr) : (seedStr>>>0); seedRand = mulberry32(s); }
+      simplex = new SimplexNoise(seedRand);
+      offsets.set(seedRand()*1000, seedRand()*1000, seedRand()*1000);
+    }
+
+    reseed(ui.seed.value);
+
+    // ---------- FBM variants ----------
+    function fbmStd(x,y,z, oct){ let amp=1, freq=1, sum=0, norm=0; for(let o=0;o<oct;o++){ sum += simplex.noise3D(x*freq, y*freq, z*freq) * amp; norm += amp; amp *= 0.5; freq *= 2.0; } return sum / norm; }
+    function fbmRidged(x,y,z, oct){ let amp=1, freq=1, sum=0, norm=0; for(let o=0;o<oct;o++){ const n = 1 - Math.abs(simplex.noise3D(x*freq, y*freq, z*freq)); sum += n*n * amp; norm += amp; amp *= 0.5; freq *= 2.0; } return (sum / norm) * 2 - 1; }
+
+    // Sample blob positions at a given time WITHOUT mutating the live geometry
+    function samplePositionsAt(time){
+      const ampFactor = parseFloat(ui.amplitude.value);
+      const scale = parseFloat(ui.scale.value);
+      const warp = parseFloat(ui.warp.value);
+      const oct = parseInt(ui.octaves.value,10);
+      const useRidged = ui.ridged.checked;
+
+      const out = new Float32Array(basePos.length);
+      for(let i=0;i<out.length;i+=3){
+        const ux = unitDirs[i], uy = unitDirs[i+1], uz = unitDirs[i+2];
+        let nx = ux*scale + offsets.x;
+        let ny = uy*scale + offsets.y;
+        let nz = uz*scale + offsets.z;
+        if (warp > 0.0001){
+          const wx = simplex.noise3D(nx + time*0.10, ny, nz);
+          const wy = simplex.noise3D(nx, ny + time*0.13, nz);
+          const wz = simplex.noise3D(nx, ny, nz + time*0.16);
+          nx += wx * warp; ny += wy * warp; nz += wz * warp;
+        }
+        const n = useRidged ? fbmRidged(nx + time*0.15, ny + time*0.15, nz + time*0.15, oct)
+                             : fbmStd   (nx + time*0.15, ny + time*0.15, nz + time*0.15, oct);
+        const disp = ampFactor * 0.6 * n; // relative to radius
+        out[i  ] = (radiusBase + disp) * ux;
+        out[i+1] = (radiusBase + disp) * uy;
+        out[i+2] = (radiusBase + disp) * uz;
+      }
+      return out;
+    }
+
+    // ---------- Animation (preview) ----------
+    function updateBlob(t){
+      const pos = geo.attributes.position;
+      const arr = pos.array;
+      const time = t * parseFloat(ui.speed.value);
+      const sample = samplePositionsAt(time);
+      arr.set(sample);
+      pos.needsUpdate = true;
+      geo.computeVertexNormals();
+    }
+
+    // ---------- Resize ----------
+    function resize(){
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(320, Math.floor(rect.width));
+      const h = Math.max(240, Math.floor(rect.height));
+      if (canvas.width !== w || canvas.height !== h){
+        renderer.setSize(w, h, false);
+        camera.aspect = w / h; camera.updateProjectionMatrix();
+      }
+    }
+    window.addEventListener('resize', resize, { passive: true });
+    resize();
+
+    // ---------- Render loop ----------
+    function tick(now){
+      updateBlob(now*0.001);
+      controls.update();
+      renderer.render(scene, camera);
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+
+    // ---------- UI bindings ----------
+    function readColor(hex){ return new THREE.Color(hex); }
+
+    [[ui.detail, ui.detailVal], [ui.subdiv, ui.subdivVal], [ui.amplitude, ui.amplitudeVal], [ui.scale, ui.scaleVal], [ui.warp, ui.warpVal], [ui.octaves, ui.octavesVal], [ui.speed, ui.speedVal], [ui.metal, ui.metalVal], [ui.rough, ui.roughVal], [ui.animFrames, ui.animFramesVal], [ui.animDuration, ui.animDurationVal], [ui.radius, ui.radiusVal], [ui.height, ui.heightVal], [ui.bend, ui.bendVal]]
+      .forEach(([input, labelEl]) => input.addEventListener('input', ()=>{ label(labelEl, input.value); if(input===ui.detail || input===ui.subdiv || input===ui.radius || input===ui.height || input===ui.bend){ buildGeometry(); } }));
+
+    ui.shape.addEventListener('change', ()=>{ updateParamVisibility(); buildGeometry(); });
+
+    ;[ui.p, ui.q].forEach(el=> el && el.addEventListener('input', ()=>{ label(ui.pVal, ui.p.value); label(ui.qVal, ui.q.value); if(ui.shape.value==='torusKnot') buildGeometry(); }));
+
+    ui.color.addEventListener('input', ()=>{ material.color.copy(readColor(ui.color.value)); });
+    ui.wireframe.addEventListener('change', ()=>{ material.wireframe = ui.wireframe.checked; });
+    ui.metal.addEventListener('input', ()=>{ material.metalness = parseFloat(ui.metal.value); });
+    ui.rough.addEventListener('input', ()=>{ material.roughness = parseFloat(ui.rough.value); });
+
+    ui.randomize.addEventListener('click', ()=>{ const bytes = new Uint32Array(1); crypto.getRandomValues(bytes); ui.seed.value = String(bytes[0]); reseed(ui.seed.value); setStatus('Nuovo seed: '+ui.seed.value); });
+    ui.regenerate.addEventListener('click', ()=>{ reseed(ui.seed.value.trim()); buildGeometry(); setStatus('Rigenerato'); });
+
+    let transparentBg = false;
+    ui.toggleBg.addEventListener('click', ()=>{ transparentBg = !transparentBg; renderer.setClearColor(0x000000, transparentBg ? 0 : 1); ui.bgState.textContent = transparentBg ? 'ON' : 'OFF'; setStatus('Sfondo '+ (transparentBg? 'trasparente' : 'opaco')); });
+
+    ui.resetView.addEventListener('click', ()=>{ camera.position.set(0,0.4,2.8); controls.target.set(0,0,0); controls.update(); });
+
+    function download(filename, blob){ const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+
+    ui.screenshot.addEventListener('click', ()=>{
+      renderer.domElement.toBlob((blob)=>{ download('blob3d.png', blob); }, 'image/png');
+    });
+
+    // ---------- GLB export (static) ----------
+    ui.downloadGlb.addEventListener('click', ()=>{
+      try{
+        if(!mesh) throw new Error('Mesh non pronta');
+        const exporter = new GLTFExporter();
+        exporter.parse(mesh, (result)=>{
+          const blob = new Blob([result], { type: 'model/gltf-binary' });
+          download('blob3d.glb', blob);
+          setStatus('✔️ GLB statico esportato');
+        }, null, { binary: true });
+      }catch(err){ console.error(err); setStatus('Errore export GLB: '+err.message); }
+    });
+
+    // ---------- GLB export (animated via morph targets) ----------
+    function buildMorphTargetsAndClip(){
+      let frames = parseInt(ui.animFrames.value, 10);
+      const duration = parseFloat(ui.animDuration.value);
+      if(!Number.isFinite(frames) || frames < 2) frames = 6;
+
+      // Unity/glTFast: usa <= 8 morph per renderer
+      const maxUnityMorphs = 8;
+      const framesUsed = Math.min(frames, maxUnityMorphs);
+      if(framesUsed < frames){ setStatus(`Frames ridotti a ${framesUsed} per compatibilità Unity`); frames = framesUsed; }
+
+      // 1) Costruisci morph targets (differenze rispetto alla base)
+      const morphs = [];
+      for(let i=0;i<frames;i++){
+        const t = (i/frames) * duration;
+        const sample = samplePositionsAt(t);
+        const delta = new Float32Array(sample.length);
+        for(let j=0;j<sample.length;j++) delta[j] = sample[j] - basePos[j];
+        const attr = new THREE.Float32BufferAttribute(delta, 3);
+        attr.name = `Frame_${String(i).padStart(2,'0')}`; // nome richiesto per binding
+        morphs.push(attr);
+      }
+
+      if(!geo.morphAttributes) geo.morphAttributes = {};
+      geo.morphAttributes.position = morphs;
+      geo.morphTargetsRelative = true; // glTF usa deltas
+
+      // Dizionario & influenze esplicite per GLTFExporter
+      const dict = {};
+      for(let i=0;i<frames;i++){
+        const name = morphs[i].name || `Frame_${String(i).padStart(2,'0')}`;
+        dict[name] = i;
+      }
+      mesh.morphTargetDictionary = dict;
+      mesh.morphTargetInfluences = new Array(frames).fill(0);
+
+      // 2) Crea track pesi con blending continuo (non one‑hot)
+      const times = new Float32Array(frames + 1);
+      for(let i=0;i<=frames;i++) times[i] = (i/frames) * duration;
+
+      const tracks = [];
+      for(let i=0;i<frames;i++){
+        const values = new Float32Array(frames + 1);
+        for(let j=0;j<=frames;j++){
+          const phase = (j/frames) * frames; // avanza da 0..frames
+          const a = Math.floor(phase) % frames;
+          const b = (a + 1) % frames;
+          const f = phase - Math.floor(phase);
+          values[j] = (i===a ? (1-f) : (i===b ? f : 0));
+        }
+        const mtName = morphs[i].name;
+        tracks.push(new THREE.NumberKeyframeTrack('Blob.morphTargetInfluences['+mtName+']', times, values));
+      }
+
+      const clip = new THREE.AnimationClip('BlobMorph', duration, tracks);
+      return clip;
+    }
+
+    // Utility: validate GLB magic/version
+    async function validateGLBBlob(blob){
+      try{
+        const ab = await blob.slice(0, 12).arrayBuffer();
+        const dv = new DataView(ab);
+        const magic = dv.getUint32(0, true);
+        const version = dv.getUint32(4, true);
+        const isGLB = magic === 0x46546c67; // 'glTF'
+        return { ok: isGLB && version === 2, magic, version };
+      } catch(e){ return { ok:false, error: String(e) }; }
+    }
+
+    // Build animated GLB as Blob
+    function buildAnimatedGLBBlob(){
+      return new Promise((resolve, reject)=>{
+        try{
+          const exporter = new GLTFExporter();
+          const clip = buildMorphTargetsAndClip();
+          exporter.parse(
+            mesh,
+            (result)=> resolve(new Blob([result], { type: 'model/gltf-binary' })),
+            null,
+            { binary: true, animations: [clip] }
+          );
+        } catch(e){ reject(e); }
+      });
+    }
+
+    // Download animated GLB
+    ui.downloadGlbAnim.addEventListener('click', async ()=>{
+      try{
+        setStatus('Esporto GLB animato…');
+        const blob = await buildAnimatedGLBBlob();
+        const v = await validateGLBBlob(blob);
+        if(!v.ok){ setStatus('⚠️ GLB non valido (magic/version)'); return; }
+        download('blob3d_animated.glb', blob);
+        setStatus('✔️ GLB animato esportato');
+      }catch(err){ console.error(err); setStatus('Errore export anim: '+err.message); }
+    });
+
+    // Test animated GLB (no download)
+    ui.testGlbAnim.addEventListener('click', async ()=>{
+      try{
+        setStatus('Verifico GLB animato…');
+        const blob = await buildAnimatedGLBBlob();
+        const v = await validateGLBBlob(blob);
+        if(v.ok){ setStatus('✅ GLB animato valido (v'+v.version+')'); }
+        else { setStatus('⚠️ GLB non valido (magic='+ (v.magic||'n/a') +')'); }
+      }catch(err){ console.error(err); setStatus('Errore verifica: '+err.message); }
+    });
+
+    // Minimal OBJ export (static)
+    function exportOBJFromMesh(m){
+      const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+      g.computeVertexNormals();
+      const p = g.getAttribute('position');
+      const n = g.getAttribute('normal');
+      const lines = [];
+      lines.push('# Blob OBJ');
+      for(let i=0;i<p.count;i++) lines.push(`v ${p.getX(i)} ${p.getY(i)} ${p.getZ(i)}`);
+      for(let i=0;i<n.count;i++) lines.push(`vn ${n.getX(i)} ${n.getY(i)} ${n.getZ(i)}`);
+      // faces (triangles)
+      for(let i=0;i<p.count; i+=3){
+        const a=i+1, b=i+2, c=i+3; // 1-indexed
+        lines.push(`f ${a}//${a} ${b}//${b} ${c}//${c}`);
+      }
+      const obj = lines.join('\n') + '\n';
+      return new Blob([obj], { type: 'text/plain' });
+    }
+
+    ui.downloadObj.addEventListener('click', ()=>{
+      const blob = exportOBJFromMesh(mesh);
+      download('blob3d.obj', blob);
+    });
+
+  </script>
+</body>
+</html>
